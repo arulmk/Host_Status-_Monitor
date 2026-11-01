@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Status Code Monitor</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --text:#15171c; --muted:#6b7280; --border:#e3e5e9;
+  --up:#16a34a; --down:#dc2626; --warn:#d97706; --accent:#2563eb; --accent-ink:#ffffff;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --bg:#0e1014; --panel:#181b21; --text:#e7e8ea; --muted:#9aa0aa; --border:#2a2e37; }
+}
+:root[data-theme="dark"]{ --bg:#0e1014; --panel:#181b21; --text:#e7e8ea; --muted:#9aa0aa; --border:#2a2e37; }
+*{box-sizing:inherit;}
+html,body{height:100%;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+header{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border);padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;z-index:5;}
+header h1{font-size:16px;margin:0;white-space:nowrap;}
+nav{display:flex;gap:4px;}
+nav button{background:none;border:1px solid var(--border);color:var(--muted);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px;}
+nav button.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+header .spacer{flex:1;}
+#gearBtn{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--muted);font-size:13px;}
+main{padding:16px;max-width:1200px;margin:0 auto;}
+.addrow{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.addrow input{flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:14px;}
+.addrow button{padding:9px 16px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;cursor:pointer;}
+#panes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;}
+.pane{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;position:relative;overflow:auto;}
+.pane .host{font-weight:600;font-size:14px;word-break:break-all;padding-right:22px;}
+.pane .rm{position:absolute;top:10px;right:10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;}
+.badge{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:22px;font-weight:700;}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);}
+.dot.up{background:var(--up);box-shadow:0 0 0 3px color-mix(in srgb, var(--up) 25%, transparent);}
+.dot.down{background:var(--down);box-shadow:0 0 0 3px color-mix(in srgb, var(--down) 25%, transparent);}
+.dot.warn{background:var(--warn);}
+.meta{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6;}
+.redirect{color:var(--warn);}
+#empty{color:var(--muted);text-align:center;padding:40px 0;font-size:14px;}
+table{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);}
+th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;}
+tr:last-child td{border-bottom:none;}
+#settings{position:fixed;top:0;right:0;height:100%;width:280px;max-width:85vw;background:var(--panel);border-left:1px solid var(--border);padding:16px;padding-top:calc(16px + env(safe-area-inset-top,0px));z-index:10;transform:translateX(100%);transition:transform .2s;}
+#settings.open{transform:translateX(0);}
+#settings label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;}
+#settings input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);}
+#settings .note{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.5;}
+#settings button{margin-top:16px;width:100%;padding:9px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .2s;z-index:9;}
+#overlay.open{opacity:1;pointer-events:auto;}
+.limited{font-size:11px;color:var(--warn);margin-top:4px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>📡 Status Code Monitor</h1>
+  <nav>
+    <button id="tabMonitor" class="active">Monitor</button>
+    <button id="tabMetrics">Metrics</button>
+  </nav>
+  <div class="spacer"></div>
+  <button id="gearBtn">⚙ Settings</button>
+</header>
+
+<main>
+  <section id="monitorView">
+    <div class="addrow">
+      <input id="hostInput" placeholder="https://example.com" />
+      <button id="addBtn">+ Add host</button>
+    </div>
+    <div id="panes"></div>
+    <div id="empty">No hosts yet — add one above to start monitoring.</div>
+  </section>
+
+  <section id="metricsView" hidden>
+    <table>
+      <thead><tr><th>Host</th><th>Monitor start</th><th>Active time</th><th>Inactive time</th><th>Uptime %</th><th>Redirects</th></tr></thead>
+      <tbody id="metricsBody"></tbody>
+    </table>
+  </section>
+</main>
+
+<div id="overlay"></div>
+<div id="settings">
+  <strong>Settings</strong>
+  <label>Checker backend URL (optional)</label>
+  <input id="backendUrl" placeholder="https://your-proxy.example.com/check" />
+  <label>Poll interval (seconds)</label>
+  <input id="intervalInput" type="number" min="3" value="10" />
+  <button id="saveSettings">Save</button>
+  <div class="note">Without a backend, checks run directly from this browser and can only report reachable / unreachable for most external sites — browsers can't read another site's real status code across origins. Point this at your own proxy for real status codes, redirect chains, etc.</div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+let state={hosts:[],backendUrl:'',intervalSec:10};
+try{const saved=JSON.parse(localStorage.getItem('scm_state')||'null'); if(saved) state=Object.assign(state,saved);}catch(e){}
+
+function save(){ try{ localStorage.setItem('scm_state', JSON.stringify(state)); }catch(e){} }
+function fmtDur(ms){
+  if(!ms||ms<0) ms=0;
+  const s=Math.floor(ms/1000);
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  return (h?h+'h ':'')+(h||m?m+'m ':'')+sec+'s';
+}
+function fmtTime(ts){ return ts? new Date(ts).toLocaleTimeString() : '—'; }
+
+function addHost(url){
+  if(!url) return;
+  if(!/^https?:\/\//i.test(url)) url='https://'+url;
+  state.hosts.push({id:Date.now()+Math.random().toString(36).slice(2),url,status:null,ok:null,
+    responseTime:null,lastChecked:null,redirected:false,finalUrl:null,redirectCount:0,
+    startTime:Date.now(),activeMs:0,inactiveMs:0,lastTick:Date.now(),limited:false});
+  save(); render();
+}
+function removeHost(id){ state.hosts=state.hosts.filter(h=>h.id!==id); save(); render(); }
+
+async function checkHost(h){
+  const now=Date.now();
+  const delta=now-h.lastTick; h.lastTick=now;
+  if(h.ok===true) h.activeMs+=delta; else if(h.ok===false) h.inactiveMs+=delta;
+  try{
+    if(state.backendUrl){
+      const res=await fetch(state.backendUrl+(state.backendUrl.includes('?')?'&':'?')+'url='+encodeURIComponent(h.url));
+      const data=await res.json();
+      const prevRedirected=h.redirected;
+      h.status=data.status; h.ok=data.status>=200 && data.status<400;
+      h.responseTime=data.responseTimeMs ?? null;
+      h.redirected=!!data.redirected; h.finalUrl=data.finalUrl||null;
+      if(h.redirected && !prevRedirected) h.redirectCount++;
+      h.limited=false;
+    } else {
+      const t0=performance.now();
+      await fetch(h.url,{mode:'no-cors',cache:'no-store'});
+      h.responseTime=Math.round(performance.now()-t0);
+      h.status='reachable'; h.ok=true; h.limited=true;
+    }
+  }catch(e){
+    h.status=state.backendUrl?'error':'unreachable'; h.ok=false; h.limited=!state.backendUrl;
+  }
+  h.lastChecked=Date.now();
+  save();
+}
+
+async function pollAll(){
+  for(const h of state.hosts){ await checkHost(h); }
+  render();
+}
+let pollTimer=null;
+function restartPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer=setInterval(pollAll, Math.max(3,state.intervalSec)*1000);
+}
+
+function statusClass(h){
+  if(h.ok===null) return '';
+  if(h.limited) return h.ok?'up':'down';
+  if(typeof h.status==='number'){
+    if(h.status>=200&&h.status<300) return 'up';
+    if(h.status>=300&&h.status<400) return 'warn';
+    return 'down';
+  }
+  return h.ok?'up':'down';
+}
+
+function render(){
+  const panes=$('#panes'); panes.innerHTML='';
+  $('#empty').style.display = state.hosts.length?'none':'block';
+  state.hosts.forEach(h=>{
+    const cls=statusClass(h);
+    const div=document.createElement('div'); div.className='pane';
+    div.innerHTML=`
+      <button class="rm" data-id="${h.id}" title="Remove">✕</button>
+      <div class="host">${h.url}</div>
+      <div class="badge"><span class="dot ${cls}"></span> ${h.status ?? '…'}</div>
+      <div class="meta">
+        Last checked: ${fmtTime(h.lastChecked)}<br>
+        Response time: ${h.responseTime!=null?h.responseTime+' ms':'—'}<br>
+        ${h.redirected?`<span class="redirect">Redirected → ${h.finalUrl||'?'}</span>`:'No redirect'}
+      </div>
+      ${h.limited?'<div class="limited">Limited mode — reachable/unreachable only</div>':''}
+    `;
+    panes.appendChild(div);
+  });
+  panes.querySelectorAll('.rm').forEach(b=>b.onclick=()=>removeHost(b.dataset.id));
+  renderMetrics();
+}
+
+function renderMetrics(){
+  const body=$('#metricsBody'); body.innerHTML='';
+  state.hosts.forEach(h=>{
+    const total=h.activeMs+h.inactiveMs;
+    const pct=total? ((h.activeMs/total)*100).toFixed(1):'—';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${h.url}</td><td>${fmtTime(h.startTime)}</td><td>${fmtDur(h.activeMs)}</td><td>${fmtDur(h.inactiveMs)}</td><td>${pct==='—'?'—':pct+'%'}</td><td>${h.redirectCount}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+$('#addBtn').onclick=()=>{ addHost($('#hostInput').value.trim()); $('#hostInput').value=''; };
+$('#hostInput').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#addBtn').click(); });
+
+$('#tabMonitor').onclick=()=>{ $('#tabMonitor').classList.add('active'); $('#tabMetrics').classList.remove('active'); $('#monitorView').hidden=false; $('#metricsView').hidden=true; };
+$('#tabMetrics').onclick=()=>{ $('#tabMetrics').classList.add('active'); $('#tabMonitor').classList.remove('active'); $('#monitorView').hidden=true; $('#metricsView').hidden=false; renderMetrics(); };
+
+$('#gearBtn').onclick=()=>{ $('#settings').classList.add('open'); $('#overlay').classList.add('open'); $('#backendUrl').value=state.backendUrl; $('#intervalInput').value=state.intervalSec; };
+$('#overlay').onclick=()=>{ $('#settings').classList.remove('open'); $('#overlay').classList.remove('open'); };
+$('#saveSettings').onclick=()=>{
+  state.backendUrl=$('#backendUrl').value.trim();
+  state.intervalSec=parseInt($('#intervalInput').value)||10;
+  save(); restartPolling();
+  $('#settings').classList.remove('open'); $('#overlay').classList.remove('open');
+};
+
+render();
+restartPolling();
+pollAll();
+</script>
+</body>
+</html>
