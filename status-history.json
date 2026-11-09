@@ -1,9 +1,9 @@
 {
   "https://example.com": {
     "monitorStart": "2026-11-01T08:52:57.050258+00:00",
-    "activeMs": 696640289.5250001,
+    "activeMs": 734478030.1940001,
     "inactiveMs": 0,
-    "lastCheck": "2026-11-09T10:23:37.339217+00:00",
+    "lastCheck": "2026-11-09T20:54:15.079867+00:00",
     "redirectCount": 0,
     "checks": [
       {
@@ -320,14 +320,23 @@
         "redirected": false,
         "finalUrl": null,
         "redirectChain": []
+      },
+      {
+        "time": "2026-11-09T20:54:15.079867+00:00",
+        "status": 200,
+        "ok": true,
+        "responseTimeMs": 66,
+        "redirected": false,
+        "finalUrl": null,
+        "redirectChain": []
       }
     ]
   },
   "https://your-second-host.com": {
     "monitorStart": "2026-11-01T08:52:57.050258+00:00",
     "activeMs": 0,
-    "inactiveMs": 696642237.973,
-    "lastCheck": "2026-11-09T10:23:37.339217+00:00",
+    "inactiveMs": 734480045.779,
+    "lastCheck": "2026-11-09T20:54:15.079867+00:00",
     "redirectCount": 0,
     "checks": [
       {
@@ -672,6 +681,16 @@
       },
       {
         "time": "2026-11-09T10:23:37.339217+00:00",
+        "status": "error",
+        "ok": false,
+        "responseTimeMs": null,
+        "redirected": false,
+        "finalUrl": null,
+        "redirectChain": [],
+        "error": "HTTPSConnectionPool(host='your-second-host.com', port=443): Max retries exceeded with url: / (Caused by NameResolutionError(\"HTTPSConnection(host='your-second-host.com', port=443): Failed to resolve 'your-second-host.com' ([Errno -2] Name or service not known)\"))"
+      },
+      {
+        "time": "2026-11-09T20:54:15.079867+00:00",
         "status": "error",
         "ok": false,
         "responseTimeMs": null,
